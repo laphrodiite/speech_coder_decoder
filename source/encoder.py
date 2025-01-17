@@ -1,95 +1,136 @@
 import numpy as np
 from scipy.signal import lfilter
+from source.hw_utils import polynomial_coeff_to_reflection_coeff
+
+def preprocess_signal(s0: np.ndarray) -> np.ndarray:
+    """
+        Preprocessing steps according to GSM 06.10 standard
+        s_o: The original input signal
+    """
+    # Constants
+    alpha = 32735 * (2 ** -15)  # Offset compensation parameter
+    beta = 28180 * (2 ** -15)   # Pre-emphasis parameter
+
+    # Initialize arrays for the processed signals
+    s0f = np.zeros_like(s0)  # Offset-compensated signal
+    s = np.zeros_like(s0)     # Final pre-emphasized signal
+
+    # Offset compensation: s0f(k) = s0(k) - s0(k-1) + alpha * s0f(k-1)
+    for k in range(1, len(s0)):
+        s0f[k] = s0[k] - s0[k - 1] + alpha * s0f[k - 1]
+
+    # Pre-emphasis filtering: s(k) = s0f(k) - beta * s0f(k-1)
+    for k in range(1, len(s0f)):
+        s[k] = s0f[k] - beta * s0f[k - 1]
+    return s
+
+
+def calculate_autocorrelation(signal, max_lag=8):
+    """
+        Calculate autocorrelation approximations for the signal.
+    """
+    length = len(signal)
+    autocorr = []
+    for lag in range(max_lag + 1):
+        autocorr.append(np.sum([signal[i] * signal[i - lag] for i in range(lag, length)]))
+    return np.array(autocorr)
+
+
+def solve_normal_equation(autocorr):
+    """
+        Solve the normal equation Rw = r for prediction coefficients.
+    """
+    R = np.zeros((8, 8))
+    r = autocorr[1:9]
+
+    for i in range(8):
+        for j in range(8):
+            R[i, j] = autocorr[abs(i - j)]
+
+    w = np.linalg.solve(R, r)
+    return w
+
+
+def reflection_to_LAR(reflection_coefficients):
+    """
+        Convert reflection coefficients to Log-Area Ratios (LAR) 
+        with the method described in GSM 06.10 standard
+    """
+    LAR = []
+    for r in reflection_coefficients:
+        abs_r = abs(r)
+        if abs_r < 0.675:
+            LAR.append(r)
+        elif 0.675 <= abs_r < 0.950:
+            LAR.append(np.sign(r) * (2 * abs_r - 0.675))
+        else:  # 0.950 <= abs_r <= 1
+            LAR.append(np.sign(r) * (8 * abs_r - 6.375))
+
+    return np.array(LAR)
+
+
+def quantize_LAR(LAR, A, B):
+    """
+        Quantize and encode LAR values based on table parameters
+        with the method described in GSM 06.10 standard.
+    """
+    if len(LAR) != len(A):
+        raise ValueError(f"LAR size ({len(LAR)}) does not match A/B size ({len(A)}).")
+    LARc = []
+    for i, lar in enumerate(LAR):
+        LARc.append(int(A[i] * lar + B[i] + 0.5 * np.sign(A[i] * lar + B[i])))
+    return np.array(LARc)
+
+
+def decode_LARc_to_reflection(LARc: np.ndarray, A: list, B: list) -> np.ndarray:
+    """
+        Decode quantized LARc values back into reflection coefficients.
+    """
+    LAR = (LARc - np.array(B)) / np.array(A)
+    reflection_coefficients = []
+    for lar in LAR:
+        abs_lar = abs(lar)
+        if abs_lar < 0.675:
+            reflection_coefficients.append(lar)
+        elif 0.675 <= abs_lar < 1.35:
+            reflection_coefficients.append(np.sign(lar) * (0.5 * (abs_lar + 0.675)))
+        else:  # abs_lar >= 1.35
+            reflection_coefficients.append(np.sign(lar) * ((abs_lar + 6.375) / 8))
+    return np.array(reflection_coefficients)
 
 def RPE_frame_st_coder(s0: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    
+    A = [20.0, 20.0, 20.0, 20.0, 13.637, 15.0, 8.334, 8.824]
+    B = [0.0, 0.0, -5.0, -5.0, 0.184, -0.5, -0.666, -2.235]
+    min_values = [-32, -32, -16, -16, -8, -8, -4, -4]
+    max_values = [31, 31, 15, 15, 7, 7, 3, 3]
+    
+    # Preprocessing
+    s = preprocess_signal(s0)
+
+    # Step 1: Autocorrelation calculation
+    autocorr = calculate_autocorrelation(s)
+
+    # Step 2: Solve normal equation to get prediction coefficients
+    prediction_coefficients = solve_normal_equation(autocorr)
+
+    # Step 3: Convert to reflection coefficients
+    reflection_coefficients = polynomial_coeff_to_reflection_coeff(prediction_coefficients)
+    print(reflection_coefficients)  # -> this returns 7 coefficients but it should be 8
+    # Step 4: Convert reflection coefficients to LAR
+    LAR = reflection_to_LAR(reflection_coefficients)
+
+    # Step 5: Quantize and encode LAR
+    LARc = quantize_LAR(LAR, A, B)
+
     """
-    Perform preprocessing and short-term analysis on the input speech signal frame.
-
-    Args:
-        s0 (np.ndarray): The input speech signal frame (160 samples).
-
-    Returns:
-        LARc (np.ndarray): Array of 8 quantized Log-Area Ratios (LAR).
-        curr_frame_st_resd (np.ndarray): Short-term residual signal (160 samples).
+    !! Not sure about this chief !!
     """
-    # Step 1: Offset compensation (remove DC bias)
-    s0 = s0 - np.mean(s0)
+    # Decode LARc to modified reflection coefficients
+    decoded_reflection_coefficients = decode_LARc_to_reflection(LARc, A, B)
 
-    # Step 2: Pre-emphasis filtering (high-pass filter)
-    # Pre-emphasis filter: H(z) = 1 - 0.9375 * z^(-1)
-    s0 = lfilter([1, -0.9375], [1], s0)
-
-    # Step 3: Compute autocorrelation for lags 0 to 8
-    def autocorrelation(signal, max_lag):
-        return np.array([np.sum(signal[:len(signal)-lag] * signal[lag:]) for lag in range(max_lag + 1)])
-
-    acf = autocorrelation(s0, 8)
-
-    # Step 4: Solve Normal Equations (R * w = r) to find predictor coefficients
-    R = np.array([[acf[abs(i-j)] for j in range(8)] for i in range(8)])
-    r = acf[1:9]
-    a = np.linalg.solve(R, r)  # Predictor coefficients
-
-    # Step 5: Convert predictor coefficients (ak) to reflection coefficients (r)
-    r = convert_predictor_to_reflection(a)
-
-    # Step 6: Convert reflection coefficients to Log-Area Ratios (LAR)
-    LAR = convert_reflection_to_lar(r)
-
-    # Step 7: Quantize LAR coefficients
-    LARc = quantize_lar(LAR)
-
-    # Step 8: Short-Term Analysis Filtering to compute residual signal
-    # Hs(z) = 1 - Σ ak * z^(-k)
-    curr_frame_st_resd = lfilter(np.concatenate(([1], -a)), [1], s0)
+    # Step 8: Compute residual signal using modified coefficients
+    fir_coefficients = np.concatenate(([1], -decoded_reflection_coefficients))
+    curr_frame_st_resd = lfilter(fir_coefficients, [1], s)
 
     return LARc, curr_frame_st_resd
-
-def convert_predictor_to_reflection(a: np.ndarray) -> np.ndarray:
-    """
-    Converts predictor coefficients (ak) to reflection coefficients (r) using the Levinson-Durbin algorithm.
-
-    Args:
-        a (np.ndarray): Array of predictor coefficients (ak).
-
-    Returns:
-        np.ndarray: Array of reflection coefficients (r).
-    """
-    order = len(a)
-    r = np.zeros(order)
-    for i in range(order):
-        r[i] = a[i]  # Approximation for conversion (exact logic depends on GSM spec)
-    return r
-
-def convert_reflection_to_lar(r: np.ndarray) -> np.ndarray:
-    """
-    Converts reflection coefficients (r) to Log-Area Ratios (LAR).
-
-    Args:
-        r (np.ndarray): Array of reflection coefficients.
-
-    Returns:
-        np.ndarray: Array of Log-Area Ratios (LAR).
-    """
-    LAR = np.zeros_like(r)
-    for i in range(len(r)):
-        if abs(r[i]) < 0.675:
-            LAR[i] = r[i]
-        elif abs(r[i]) < 1.225:
-            LAR[i] = np.sign(r[i]) * (0.5 * abs(r[i]) + 0.3375)
-        else:
-            LAR[i] = np.sign(r[i]) * (0.125 * abs(r[i]) + 0.796875)
-    return LAR
-
-def quantize_lar(LAR: np.ndarray) -> np.ndarray:
-    """
-    Quantizes the Log-Area Ratios (LAR) as per GSM 06.10 specification.
-
-    Args:
-        LAR (np.ndarray): Array of Log-Area Ratios.
-
-    Returns:
-        np.ndarray: Quantized Log-Area Ratios (LARc).
-    """
-    # Placeholder for actual quantization logic
-    return np.round(LAR, decimals=2)
