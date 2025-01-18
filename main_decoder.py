@@ -15,9 +15,10 @@ def main():
     assert s0.shape == curr_frame_st_resd.shape, "Output signal shape does not match input residual shape."
 
     # Output results
-    print("Input LARc:", LARc)
-    print("Input Residual (first 10 samples):", curr_frame_st_resd[:10])
-    print("Reconstructed Signal (first 10 samples):", s0[:10])
+    print("Input LARc:", LARc.shape)
+    print("Input Residual dimensions:", curr_frame_st_resd.shape)
+    print("Reconstructed Signal dimensions:", s0.shape)
+    print("MSE: ", np.mean((curr_frame_st_resd - s0)**2))
 
 if __name__ == "__main__":
     main()
