@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.signal import lfilter
-from source.hw_utils import polynomial_coeff_to_reflection_coeff
+from hw_utils import polynomial_coeff_to_reflection_coeff
 
 def preprocess_signal(s0: np.ndarray) -> np.ndarray:
     """
@@ -24,31 +24,13 @@ def preprocess_signal(s0: np.ndarray) -> np.ndarray:
         s[k] = s0f[k] - beta * s0f[k - 1]
     return s
 
-
-def calculate_autocorrelation(signal, max_lag=8):
-    """
-        Calculate autocorrelation approximations for the signal.
-    """
-    length = len(signal)
-    autocorr = []
-    for lag in range(max_lag + 1):
-        autocorr.append(np.sum([signal[i] * signal[i - lag] for i in range(lag, length)]))
-    return np.array(autocorr)
-
-
-def solve_normal_equation(autocorr):
-    """
-        Solve the normal equation Rw = r for prediction coefficients.
-    """
-    R = np.zeros((8, 8))
-    r = autocorr[1:9]
-
-    for i in range(8):
-        for j in range(8):
-            R[i, j] = autocorr[abs(i - j)]
-
-    w = np.linalg.solve(R, r)
-    return w
+def calculate_acf(signal: np.ndarray, lag: int) -> np.ndarray:
+    """Calculate autocorrelation for a signal."""
+    N = len(signal)
+    acf = np.zeros(lag + 1)
+    for k in range(lag + 1):
+        acf[k] = np.sum(signal[k:] * signal[:N - k])
+    return acf
 
 
 def reflection_to_LAR(reflection_coefficients):
@@ -69,7 +51,7 @@ def reflection_to_LAR(reflection_coefficients):
     return np.array(LAR)
 
 
-def quantize_LAR(LAR, A, B):
+def quantize_LAR(LAR, A, B, min_values, max_values):
     """
         Quantize and encode LAR values based on table parameters
         with the method described in GSM 06.10 standard.
@@ -78,7 +60,9 @@ def quantize_LAR(LAR, A, B):
         raise ValueError(f"LAR size ({len(LAR)}) does not match A/B size ({len(A)}).")
     LARc = []
     for i, lar in enumerate(LAR):
-        LARc.append(int(A[i] * lar + B[i] + 0.5 * np.sign(A[i] * lar + B[i])))
+        quantized = int(A[i] * lar + B[i] + 0.5 * np.sign(A[i] * lar + B[i]))
+        LARc.append(np.clip(quantized, min_values[i], max_values[i]))
+
     return np.array(LARc)
 
 
@@ -98,6 +82,7 @@ def decode_LARc_to_reflection(LARc: np.ndarray, A: list, B: list) -> np.ndarray:
             reflection_coefficients.append(np.sign(lar) * ((abs_lar + 6.375) / 8))
     return np.array(reflection_coefficients)
 
+
 def RPE_frame_st_coder(s0: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     
     A = [20.0, 20.0, 20.0, 20.0, 13.637, 15.0, 8.334, 8.824]
@@ -108,20 +93,19 @@ def RPE_frame_st_coder(s0: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     # Preprocessing
     s = preprocess_signal(s0)
 
-    # Step 1: Autocorrelation calculation
-    autocorr = calculate_autocorrelation(s)
+    # Calculating prediction coefficients through ACF
+    lag = 8
+    acf = calculate_acf(s, lag)
+    prediction_coefficients = acf[0:lag + 1]
 
-    # Step 2: Solve normal equation to get prediction coefficients
-    prediction_coefficients = solve_normal_equation(autocorr)
-
-    # Step 3: Convert to reflection coefficients
+    # Converting to reflection coefficients
     reflection_coefficients = polynomial_coeff_to_reflection_coeff(prediction_coefficients)
-    print(reflection_coefficients)  # -> this returns 7 coefficients but it should be 8
-    # Step 4: Convert reflection coefficients to LAR
+
+    # Converting to LAR
     LAR = reflection_to_LAR(reflection_coefficients)
 
-    # Step 5: Quantize and encode LAR
-    LARc = quantize_LAR(LAR, A, B)
+    # Quantizing and encoding LAR
+    LARc = quantize_LAR(LAR, A, B, min_values, max_values)
 
     """
     !! Not sure about this chief !!
