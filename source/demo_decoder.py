@@ -18,7 +18,6 @@ def main():
     print("Input LARc:", LARc.shape)
     print("Input Residual dimensions:", curr_frame_st_resd.shape)
     print("Reconstructed Signal dimensions:", s0.shape)
-    print("MSE: ", np.mean((curr_frame_st_resd - s0)**2))
 
 if __name__ == "__main__":
     main()
