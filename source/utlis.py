@@ -1,4 +1,6 @@
 import numpy as np
+import wave
+import matplotlib.pyplot as plt
 
 # Hard coded quantization parameters described in GSM 06.10 standard
 A = [20.0, 20.0, 20.0, 20.0, 13.637, 15.0, 8.334, 8.824]
@@ -21,3 +23,47 @@ def decode_LARc_to_reflection(LARc: np.ndarray) -> np.ndarray:
         else:  # abs_lar >= 1.35
             reflection_coefficients.append(np.sign(lar) * ((abs_lar + 6.375) / 8))
     return np.array(reflection_coefficients)
+
+mean = -0.047766475011057054
+std = 202.11444587038957
+
+def load_wav(file_path):
+    """Load a WAV file and return the audio samples normalized to [0, 1]."""
+    with wave.open(file_path, 'r') as wav_file:
+        # Read parameters
+        n_channels = wav_file.getnchannels()
+        framerate = wav_file.getframerate()
+        n_frames = wav_file.getnframes()
+
+        # Ensure the WAV file is mono
+        assert n_channels == 1, "Only mono audio is supported."
+
+        # Read and normalize audio data to [0, 1]
+        audio_data = np.frombuffer(wav_file.readframes(n_frames), dtype=np.int16)
+        plt.plot(audio_data)
+        plt.show()
+
+        audio_data = (audio_data - mean) / std
+        #audio_data = (audio_data - np.iinfo(np.int16).min) / (np.iinfo(np.int16).max - np.iinfo(np.int16).min)  # Normalize to [0, 1]
+        plt.plot(audio_data)
+        plt.show()
+
+    return audio_data, framerate
+
+
+def save_wav(file_path, audio_data, framerate):
+    """Save a NumPy array (normalized to [0, 1]) as a WAV file."""
+    # Clip values to ensure they are within the valid range [0, 1]
+    audio_data = np.clip(audio_data, -5, 5)
+
+    # Denormalize to int16
+    #audio_data = (audio_data * (np.iinfo(np.int16).max - np.iinfo(np.int16).min) + np.iinfo(np.int16).min).astype(np.int16)
+    audio_data = (audio_data * std + mean).astype(np.int16)
+    plt.plot(audio_data)
+    plt.show()
+
+    with wave.open(file_path, 'w') as wav_file:
+        wav_file.setnchannels(1)  # Mono
+        wav_file.setsampwidth(2)  # 16-bit audio
+        wav_file.setframerate(framerate)
+        wav_file.writeframes(audio_data.tobytes())
