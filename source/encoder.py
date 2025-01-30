@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.signal import lfilter
 from hw_utils import polynomial_coeff_to_reflection_coeff
-from source.utlis import A, B, min_values, max_values, decode_LARc_to_reflection
+from source.utils import A, B, min_values, max_values, decode_LARc_to_reflection
 
 def preprocess_signal(s0: np.ndarray) -> np.ndarray:
     """
@@ -32,7 +32,6 @@ def calculate_acf(signal: np.ndarray, lag=8) -> np.ndarray:
     for k in range(lag + 1):
         acf[k] = np.sum(signal[k:] * signal[:N - k])
     return acf[0:lag + 1]
-
 
 def convert_reflection_to_LAR(reflection_coefficients):
     """
@@ -83,9 +82,6 @@ def RPE_frame_st_coder(s0: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     # Quantizing and encoding LAR
     LARc = quantize_LAR(LAR)
 
-    """
-    !! Not sure about this chief !!
-    """
     # Decode LARc to modified reflection coefficients
     decoded_reflection_coefficients = decode_LARc_to_reflection(LARc)
 
@@ -94,3 +90,43 @@ def RPE_frame_st_coder(s0: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     curr_frame_st_resd = lfilter(fir_coefficients, [1], s)
 
     return LARc, curr_frame_st_resd
+
+def RPE_subframe_slt_lte(d: np.ndarray, prev_d: np.ndarray) -> tuple[int, float]:
+    """
+        Computes the pitch period (N) and gain factor (b)
+        using cross-correlation to find the best match.
+    """
+    min_lag, max_lag = len(d), len(prev_d)
+    best_N, best_prev_window = min_lag, []
+    max_correlation = -np.inf
+
+    # Compute N using cross-correlation
+    for N in range(min_lag, max_lag+1):
+        d_past = prev_d[-N:min_lag-N] if min_lag != N else prev_d[-N:]
+        R_N = np.sum(d * d_past)  # Compute R(λ)
+        if R_N > max_correlation:
+            max_correlation = R_N
+            best_N, best_prev_window = N, d_past
+
+    # Compute b
+    numerator = np.sum(d * best_prev_window)
+    denominator = np.sum(best_prev_window ** 2)
+    b = numerator / denominator if denominator != 0 else 0
+
+    return best_N, b
+
+"""
+# This main checks the RPE_subframe_slt_lte function
+def main():
+    # Generate test signals
+    np.random.seed(42)
+    d = np.random.randn(40)  # Random current subframe
+    prev_d = np.random.randn(120)  # Random previous subframes
+
+    # Compute pitch period and gain factor
+    N, b = RPE_subframe_slt_lte(d, prev_d)
+
+    # Print the results
+    print(f"Estimated pitch period (N): {N}")
+    print(f"Estimated gain factor (b): {b:.4f}")
+"""

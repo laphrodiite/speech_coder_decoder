@@ -1,8 +1,8 @@
-from source.utlis import load_wav, save_wav
+from source.utils import load_wav, save_wav
 import numpy as np
 from source.decoder import RPE_frame_st_decoder
 from source.encoder import RPE_frame_st_coder
-import matplotlib.pyplot as plt
+from source.utils import plot_waves
 
 def encode_decode_pipeline(original_audio, frame_size = 160, verbose=False):
     # Split to 160 samples per frame
@@ -33,24 +33,6 @@ def encode_decode_pipeline(original_audio, frame_size = 160, verbose=False):
     reconstructed_audio = np.array(reconstructed_audio) * audio_range / 2
     return np.clip(reconstructed_audio, -audio_range, audio_range), mse_per_frame
 
-
-def plot_waves(s0, reconstructed_s0):
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 6), sharex=True)
-    ax1.plot(s0, label="s0", color="blue")
-    ax1.set_title("Original Sound Wave")
-    ax1.set_ylabel("Amplitude")
-    ax1.grid(True)
-
-    ax2.plot(reconstructed_s0, label="reconstructed s0", color="orange")
-    ax2.set_title("Reconstructed Sound Wave")
-    ax2.set_xlabel("Time (s)")
-    ax2.set_ylabel("Amplitude")
-    ax2.grid(True)
-
-    fig.suptitle('RPE Frame Coder & Decoder Results')
-    plt.savefig('../plots/1_waves.png')
-
-
 def main():
     # Input and output file paths
     input_wav_path = "../ena_dio_tria.wav"
@@ -69,11 +51,8 @@ def main():
     mse = np.mean((s0[:len(reconstructed_s0)] - reconstructed_s0) ** 2)
 
     # Plot the waves in a common plot
-    plot_waves(s0, reconstructed_s0)
+    plot_waves(s0, reconstructed_s0) # TODO mse plot as well ???
     print(f"Reconstruction MSE: {mse}")
-    #plt.figure()
-    #plt.plot(mses)
-    #plt.show()
 
 if __name__ == '__main__':
     main()

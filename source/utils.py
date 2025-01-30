@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 import wave
 
 # Hard coded quantization parameters described in GSM 06.10 standard
@@ -37,7 +38,6 @@ def load_wav(file_path):
 
     return audio_data, framerate
 
-
 def save_wav(file_path, audio_data, framerate):
     """ Save a NumPy array as a WAV file. """
     # Convert to int16
@@ -49,3 +49,18 @@ def save_wav(file_path, audio_data, framerate):
         wav_file.setframerate(framerate)
         wav_file.writeframes(audio_data.tobytes())
 
+def plot_waves(s0, reconstructed_s0):
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 6), sharex=True)
+    ax1.plot(s0, label="s0", color="blue")
+    ax1.set_title("Original Sound Wave")
+    ax1.set_ylabel("Amplitude")
+    ax1.grid(True)
+
+    ax2.plot(reconstructed_s0, label="reconstructed s0", color="orange")
+    ax2.set_title("Reconstructed Sound Wave")
+    ax2.set_xlabel("Time (s)")
+    ax2.set_ylabel("Amplitude")
+    ax2.grid(True)
+
+    fig.suptitle('RPE Frame Coder & Decoder Results')
+    plt.savefig('../plots/1_waves.png')

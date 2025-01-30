@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.signal import lfilter
 from source.hw_utils import reflection_coeff_to_polynomial_coeff
-from source.utlis import decode_LARc_to_reflection
+from source.utils import decode_LARc_to_reflection
 
 def RPE_frame_st_decoder(LARc: np.ndarray, curr_frame_st_resd: np.ndarray) -> np.ndarray:
     """
