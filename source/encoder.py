@@ -50,7 +50,6 @@ def convert_reflection_to_LAR(reflection_coefficients):
 
     return np.array(LAR)
 
-
 def quantize_LAR(LAR):
     """
         Quantize and encode LAR values based on table parameters
@@ -65,7 +64,44 @@ def quantize_LAR(LAR):
 
     return np.array(LARc)
 
+def RPE_subframe_slt_lte(d: np.ndarray, prev_d: np.ndarray) -> tuple[int, float]:
+    """
+        Computes the pitch period (N) and gain factor (b)
+        using cross-correlation to find the best match.
+    """
+    min_lag, max_lag = len(d), len(prev_d)
+    best_N, best_prev_window = min_lag, []
+    max_correlation = -np.inf
 
+    # Compute N using cross-correlation
+    for N in range(min_lag, max_lag+1):
+        d_past = prev_d[-N:min_lag-N] if min_lag != N else prev_d[-N:]
+        R_N = np.sum(d * d_past)  # Compute R(λ)
+        if R_N > max_correlation:
+            max_correlation = R_N
+            best_N, best_prev_window = N, d_past
+
+    # Compute b
+    numerator = np.sum(d * best_prev_window)
+    denominator = np.sum(best_prev_window ** 2)
+    b = numerator / denominator if denominator != 0 else 0
+
+    return best_N, b
+"""
+# This main checks the RPE_subframe_slt_lte function
+def main():
+    # Generate test signals
+    np.random.seed(42)
+    d = np.random.randn(40)  # Random current subframe
+    prev_d = np.random.randn(120)  # Random previous subframes
+
+    # Compute pitch period and gain factor
+    N, b = RPE_subframe_slt_lte(d, prev_d)
+
+    # Print the results
+    print(f"Estimated pitch period (N): {N}")
+    print(f"Estimated gain factor (b): {b:.4f}")
+"""
 def RPE_frame_st_coder(s0: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     # Preprocessing
     s = preprocess_signal(s0)
@@ -91,42 +127,16 @@ def RPE_frame_st_coder(s0: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
     return LARc, curr_frame_st_resd
 
-def RPE_subframe_slt_lte(d: np.ndarray, prev_d: np.ndarray) -> tuple[int, float]:
+def RPE_frame_slt_coder(s0: np.ndarray, prev_frame_st_resd: np.ndarray)\
+        -> tuple[np.ndarray, int, int, np.ndarray, np.ndarray]:
     """
-        Computes the pitch period (N) and gain factor (b)
-        using cross-correlation to find the best match.
+
+    LARc: np.ndarray,
+    Nc: int,
+    bc: int,
+    curr_frame_ex_full: np.ndarray,
+    curr_frame_st_resd: np.ndarray
+
     """
-    min_lag, max_lag = len(d), len(prev_d)
-    best_N, best_prev_window = min_lag, []
-    max_correlation = -np.inf
+    return None
 
-    # Compute N using cross-correlation
-    for N in range(min_lag, max_lag+1):
-        d_past = prev_d[-N:min_lag-N] if min_lag != N else prev_d[-N:]
-        R_N = np.sum(d * d_past)  # Compute R(λ)
-        if R_N > max_correlation:
-            max_correlation = R_N
-            best_N, best_prev_window = N, d_past
-
-    # Compute b
-    numerator = np.sum(d * best_prev_window)
-    denominator = np.sum(best_prev_window ** 2)
-    b = numerator / denominator if denominator != 0 else 0
-
-    return best_N, b
-
-"""
-# This main checks the RPE_subframe_slt_lte function
-def main():
-    # Generate test signals
-    np.random.seed(42)
-    d = np.random.randn(40)  # Random current subframe
-    prev_d = np.random.randn(120)  # Random previous subframes
-
-    # Compute pitch period and gain factor
-    N, b = RPE_subframe_slt_lte(d, prev_d)
-
-    # Print the results
-    print(f"Estimated pitch period (N): {N}")
-    print(f"Estimated gain factor (b): {b:.4f}")
-"""

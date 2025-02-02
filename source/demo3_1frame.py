@@ -2,7 +2,7 @@ from encoder import *
 from decoder import *
 import matplotlib.pyplot as plt
 # Generate a random speech frame
-s0 = np.random.normal(0, 10000, size=160)
+s0 = np.random.normal(0, 1, size=160)
 
 # Encode the signal
 LARc, curr_frame_st_resd = RPE_frame_st_coder(s0)
