@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.signal import lfilter
+
 from hw_utils import polynomial_coeff_to_reflection_coeff
 from source.utils import A, B, min_values, max_values, decode_LARc_to_reflection
 
@@ -87,21 +88,7 @@ def RPE_subframe_slt_lte(d: np.ndarray, prev_d: np.ndarray) -> tuple[int, float]
     b = numerator / denominator if denominator != 0 else 0
 
     return best_N, b
-"""
-# This main checks the RPE_subframe_slt_lte function
-def main():
-    # Generate test signals
-    np.random.seed(42)
-    d = np.random.randn(40)  # Random current subframe
-    prev_d = np.random.randn(120)  # Random previous subframes
 
-    # Compute pitch period and gain factor
-    N, b = RPE_subframe_slt_lte(d, prev_d)
-
-    # Print the results
-    print(f"Estimated pitch period (N): {N}")
-    print(f"Estimated gain factor (b): {b:.4f}")
-"""
 def RPE_frame_st_coder(s0: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     # Preprocessing
     s = preprocess_signal(s0)
@@ -127,10 +114,67 @@ def RPE_frame_st_coder(s0: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
     return LARc, curr_frame_st_resd
 
-def RPE_frame_slt_coder(s0: np.ndarray, prev_frame_st_resd: np.ndarray)\
-        -> tuple[np.ndarray, int, int, np.ndarray, np.ndarray]:
+def quantize_b(b:list) -> list:
     """
+        Quantize the gain parameter according to paragraph 3.1.15
+    """
+    from utils import DLB
+    bc = []
+    for bj in b:
+        for i in range(len(DLB)):
+            if bj <= DLB[i]:
+                bc.append(i)
+                break
+    return bc
 
+# TODO MAYBE SPLIT INTO 2D MATRICES TO AVOID DUPLICATE CODE REGARDING FRAME SPLITTING IN THE FOLLOWING 2 FUNCTIONS
+
+def find_optimal_pitch_gain_subframes(double_frame: np.ndarray, num_subframes=4)\
+        -> tuple[list, list]:
+    """
+        Get the optimal N and b for each subframe
+    """
+    # Parameter initialization
+    frame_len = len(double_frame) // 2
+    subframe_len = frame_len // num_subframes
+    N, b = [], []
+
+    # Loop through the concatenated frames and split into subframes
+    for j in range(num_subframes):
+        ind_min, ind_max = frame_len + j * subframe_len, frame_len + (j + 1) * subframe_len
+        subframe = double_frame[ind_min:ind_max]
+        previous_frame = double_frame[ind_min - 3 * subframe_len : ind_max - subframe_len]
+
+        Nj, bj = RPE_subframe_slt_lte(subframe, previous_frame)
+        N.append(Nj)
+        b.append(bj)
+
+    return N, b
+
+def calculate_reconstructed_lt_resd(double_frame: np.ndarray, N:list, b:list, num_subframes=4)\
+        -> tuple[np.ndarray, np.ndarray]:
+    # Parameter initialization
+    frame_len = len(double_frame) // 2
+    subframe_len = frame_len // num_subframes
+    estimated_samples = []
+
+    # Loop through the concatenated frames and split into subframes
+    for j, (bj, Nj) in enumerate(zip(b, N)):
+        ind_min, ind_max = frame_len + j * subframe_len, frame_len + (j + 1) * subframe_len
+        estimated_samples.extend(bj * double_frame[ind_min - Nj: ind_max - Nj])
+
+    reconstructed_lt_resd = double_frame[frame_len:] - estimated_samples
+    reconstructed_st_resd = reconstructed_lt_resd + estimated_samples
+    assert len(reconstructed_lt_resd) == frame_len, "Reconstructed lr residual signal should match frame length."
+    return np.array(reconstructed_lt_resd), np.array(reconstructed_st_resd)
+
+
+def RPE_frame_slt_coder(s0: np.ndarray, prev_frame_st_resd: np.ndarray)\
+        -> tuple[np.ndarray, list, list, np.ndarray, np.ndarray]:
+    """
+    both s0 and prev_frame_st_resd have len 160
+
+    returns will be:
     LARc: np.ndarray,
     Nc: int,
     bc: int,
@@ -138,5 +182,17 @@ def RPE_frame_slt_coder(s0: np.ndarray, prev_frame_st_resd: np.ndarray)\
     curr_frame_st_resd: np.ndarray
 
     """
-    return None
+    LARc, current_frame_st_resd = RPE_frame_st_coder(s0)
+    concatenated_frames = np.concatenate((prev_frame_st_resd, current_frame_st_resd))
+
+    # Calculate and encode N, b values
+    N, b = find_optimal_pitch_gain_subframes(concatenated_frames)
+    Nc = N  # unnecessary but equation 3.13 says to do so ???
+    bc = quantize_b(b)
+
+    reconstructed_lt_resd, reconstructed_st_resd = calculate_reconstructed_lt_resd(concatenated_frames, Nc, bc)
+
+    # don't bother me with return types
+    array = np.zeros(1)
+    return LARc, Nc, bc, array, array
 
