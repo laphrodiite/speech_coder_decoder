@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.signal import lfilter
 from hw_utils import reflection_coeff_to_polynomial_coeff
-from utils import decode_LARc_to_reflection
+from utils import decode_LARc_to_reflection, BETA
 from typing import List, Tuple
 
 def RPE_frame_st_decoder(LARc: np.ndarray, curr_frame_st_resd: np.ndarray) -> np.ndarray:
@@ -14,7 +14,15 @@ def RPE_frame_st_decoder(LARc: np.ndarray, curr_frame_st_resd: np.ndarray) -> np
 
     # Short-Term Synthesis Filtering
     # Hs(z) = 1 / (1 - ∑ ak * z^(-k)) -> Convolution in the time domain
-    s0 = lfilter([1], np.concatenate(([1], -ak[1:])), curr_frame_st_resd)
+    s_prime = lfilter([1], np.concatenate(([1], -ak[1:])), curr_frame_st_resd)
+    
+    # Postprocessing step included
+    # IIR filter coefficients
+    b = [1]  # Numerator (direct gain)
+    a = [1, -BETA]  # Denominator (feedback term)
+
+    # Apply the filter
+    s0 = lfilter(b, a, s_prime)
     return s0
 
 def RPE_frame_slt_decoder(LARc: np.ndarray,
@@ -23,12 +31,19 @@ def RPE_frame_slt_decoder(LARc: np.ndarray,
                           curr_frame_ex_full: np.ndarray,
                           prev_frame_st_resd: np.ndarray
                           ) -> Tuple[np.ndarray, np.ndarray]:
+    
+    """
+        It is assumed that Nc and bc are the dequantized parameters
+        and the overall error signal curr_frame_ex_full is formed from the 
+        parameters M', x'max and the 13 values of x'M(i)
+    """
 
     frame_length = 160
     subframe_length = 40
     # Initialize the array for the reconstructed short term residual d'(n)
     curr_frame_st_resd = np.zeros(frame_length)
     
+    # Step 2 of paragraph 2.2
     # Process each of the 4 subframes
     for subframe in range(4):
         # Calculate the start and end indices for the current subframe
@@ -36,7 +51,6 @@ def RPE_frame_slt_decoder(LARc: np.ndarray,
         end = start + subframe_length
         
         # Get long term prediction parameters for this subframe.
-        # They are assumed to be dequantized.
         N = Nc[subframe]
         b = bc[subframe]
         
@@ -60,7 +74,8 @@ def RPE_frame_slt_decoder(LARc: np.ndarray,
             # Reconstruct the short term residual for the current sample:
             # d'(n) = e(n) + d'_pred(n)
             curr_frame_st_resd[n] = curr_frame_ex_full[n] + predicted
-            
+    
+    # Steps 3-5 of paragraph 2.2
     # Now, use the short term synthesis decoder to reconstruct the final speech signal.
     s0 = RPE_frame_st_decoder(LARc, curr_frame_st_resd)
     
