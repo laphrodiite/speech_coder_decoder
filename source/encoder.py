@@ -4,18 +4,21 @@ from scipy.signal import lfilter
 from hw_utils import polynomial_coeff_to_reflection_coeff
 from source.utils import A, B, min_values, max_values, decode_LARc_to_reflection
 
+
 def preprocess_signal(s0: np.ndarray) -> np.ndarray:
     """
-        Preprocessing steps according to GSM 06.10 standard
-        s_0: The original input signal
-    """
-    # Constants
-    alpha = 32735 * (2 ** -15)  # Offset compensation parameter
-    beta = 28180 * (2 ** -15)   # Pre-emphasis parameter
+    Preprocess the input signal according to the GSM 06.10 standard.
 
-    # Initialize arrays for the processed signals
-    s0f = np.zeros_like(s0)  # Offset-compensated signal
-    s = np.zeros_like(s0)     # Final pre-emphasized signal
+    :param s0: The original input signal.
+    :return: The preprocessed signal.
+    """
+
+    # Offset compensation & pre-emphasis constants
+    from source.utils import alpha, beta
+
+    # Initialize offset-compensated signal & final pre-emphasized signal arrays
+    s0f = np.zeros_like(s0)
+    s = np.zeros_like(s0)
 
     # Offset compensation: s0f(k) = s0(k) - s0(k-1) + alpha * s0f(k-1)
     for k in range(1, len(s0)):
@@ -24,20 +27,34 @@ def preprocess_signal(s0: np.ndarray) -> np.ndarray:
     # Pre-emphasis filtering: s(k) = s0f(k) - beta * s0f(k-1)
     for k in range(1, len(s0f)):
         s[k] = s0f[k] - beta * s0f[k - 1]
+
     return s
 
-def calculate_acf(signal: np.ndarray, lag=8) -> np.ndarray:
-    """Calculate autocorrelation for a signal."""
+
+def calculate_acf(signal: np.ndarray, lag: int = 8) -> np.ndarray:
+    """
+    Calculate the autocorrelation function (ACF) for a given signal.
+
+    :param signal: The input signal.
+    :param lag: The maximum lag for which ACF is calculated.
+    :return: The autocorrelation values for lags 0 to `lag`.
+    """
     N = len(signal)
     acf = np.zeros(lag + 1)
+
+    # Compute ACF for each lag
     for k in range(lag + 1):
         acf[k] = np.sum(signal[k:] * signal[:N - k])
+
     return acf[0:lag + 1]
 
-def convert_reflection_to_LAR(reflection_coefficients):
+
+def convert_reflection_to_LAR(reflection_coefficients: np.ndarray) -> np.ndarray:
     """
-        Convert reflection coefficients to Log-Area Ratios (LAR) 
-        with the method described in GSM 06.10 standard
+    Convert reflection coefficients to Log-Area Ratios (LAR) as per GSM 06.10 standard.
+
+    :param reflection_coefficients: The reflection coefficients to convert.
+    :return: The corresponding Log-Area Ratios (LAR).
     """
     LAR = []
     for r in reflection_coefficients:
@@ -51,13 +68,17 @@ def convert_reflection_to_LAR(reflection_coefficients):
 
     return np.array(LAR)
 
-def quantize_LAR(LAR):
+
+def quantize_LAR(LAR: np.ndarray) -> np.ndarray:
     """
-        Quantize and encode LAR values based on table parameters
-        with the method described in GSM 06.10 standard.
+    Quantize and encode LAR values based on GSM 06.10 standard.
+
+    :param LAR: The Log-Area Ratios to quantize.
+    :return: The quantized and encoded LAR values.
     """
     if len(LAR) != len(A):
         raise ValueError(f"LAR size ({len(LAR)}) does not match A/B size ({len(A)}).")
+
     LARc = []
     for i, lar in enumerate(LAR):
         quantized = int(A[i] * lar + B[i] + 0.5 * np.sign(A[i] * lar + B[i]))
@@ -65,18 +86,22 @@ def quantize_LAR(LAR):
 
     return np.array(LARc)
 
+
 def RPE_subframe_slt_lte(d: np.ndarray, prev_d: np.ndarray) -> tuple[int, float]:
     """
-        Computes the pitch period (N) and gain factor (b)
-        using cross-correlation to find the best match.
+    Compute the pitch period (N) and gain factor (b) using cross-correlation.
+
+    :param d: The current subframe signal.
+    :param prev_d: The previous frame signal.
+    :return: A tuple containing the optimal pitch period (N) and gain factor (b).
     """
     min_lag, max_lag = len(d), len(prev_d)
     best_N, best_prev_window = min_lag, []
     max_correlation = -np.inf
 
     # Compute N using cross-correlation
-    for N in range(min_lag, max_lag+1):
-        d_past = prev_d[-N:min_lag-N] if min_lag != N else prev_d[-N:]
+    for N in range(min_lag, max_lag + 1):
+        d_past = prev_d[-N:min_lag - N] if min_lag != N else prev_d[-N:]
         R_N = np.sum(d * d_past)  # Compute R(λ)
         if R_N > max_correlation:
             max_correlation = R_N
@@ -89,20 +114,27 @@ def RPE_subframe_slt_lte(d: np.ndarray, prev_d: np.ndarray) -> tuple[int, float]
 
     return best_N, b
 
+
 def RPE_frame_st_coder(s0: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    # Preprocessing
+    """
+    Encode the current frame using short-term prediction.
+
+    :param s0: The input signal frame.
+    :return: A tuple containing the encoded LARc and the short-term residual signal.
+    """
+    # Preprocess the input signal
     s = preprocess_signal(s0)
 
-    # Calculating prediction coefficients through ACF
+    # Calculate prediction coefficients using ACF
     prediction_coefficients = calculate_acf(s)
 
-    # Converting to reflection coefficients
+    # Convert to reflection coefficients
     reflection_coefficients = polynomial_coeff_to_reflection_coeff(prediction_coefficients)
 
-    # Converting to LAR
+    # Convert to Log-Area Ratios (LAR)
     LAR = convert_reflection_to_LAR(reflection_coefficients)
 
-    # Quantizing and encoding LAR
+    # Quantize and encode LAR values
     LARc = quantize_LAR(LAR)
 
     # Decode LARc to modified reflection coefficients
@@ -114,9 +146,13 @@ def RPE_frame_st_coder(s0: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
     return LARc, curr_frame_st_resd
 
-def quantize_b(b:list) -> list:
+
+def quantize_b(b: list) -> list:
     """
-        Quantize the gain parameter according to paragraph 3.1.15
+    Quantize the gain parameter (b) according to GSM 06.10 standard.
+
+    :param b: The list of gain factors to quantize.
+    :return: The quantized gain factors.
     """
     from utils import DLB
     bc = []
@@ -127,72 +163,91 @@ def quantize_b(b:list) -> list:
                 break
     return bc
 
-# TODO MAYBE SPLIT INTO 2D MATRICES TO AVOID DUPLICATE CODE REGARDING FRAME SPLITTING IN THE FOLLOWING 2 FUNCTIONS
 
-def find_optimal_pitch_gain_subframes(double_frame: np.ndarray, num_subframes=4)\
-        -> tuple[list, list]:
+def find_optimal_pitch_gain_subframes(double_frame: np.ndarray, num_subframes: int = 4) -> tuple[list, list]:
     """
-        Get the optimal N and b for each subframe
+    Find the optimal pitch delay (N) and gain factor (b) for each subframe.
+
+    :param double_frame: The concatenated frame (previous + current frame).
+    :param num_subframes: The number of subframes to process.
+    :return: A tuple containing lists of optimal pitch delays (N) and gain factors (b).
     """
-    # Parameter initialization
     frame_len = len(double_frame) // 2
     subframe_len = frame_len // num_subframes
     N, b = [], []
 
-    # Loop through the concatenated frames and split into subframes
     for j in range(num_subframes):
+        # Calculate index window for the subframe
         ind_min, ind_max = frame_len + j * subframe_len, frame_len + (j + 1) * subframe_len
         subframe = double_frame[ind_min:ind_max]
-        previous_frame = double_frame[ind_min - 3 * subframe_len : ind_max - subframe_len]
+        previous_frame = double_frame[ind_min - 3 * subframe_len: ind_max - subframe_len]
 
+        # Find optimal N and b for this subframe
         Nj, bj = RPE_subframe_slt_lte(subframe, previous_frame)
         N.append(Nj)
         b.append(bj)
 
     return N, b
 
-def calculate_reconstructed_lt_resd(double_frame: np.ndarray, N:list, b:list, num_subframes=4)\
+
+def reconstruct_frame_residuals(double_frame: np.ndarray, N: list, b: list, num_subframes: int = 4) \
         -> tuple[np.ndarray, np.ndarray]:
-    # Parameter initialization
+    """
+    Reconstruct the excitation and short-term residual signals.
+
+    :param double_frame: The concatenated frame (previous + current frame).
+    :param N: The list of pitch delays for each subframe.
+    :param b: The list of gain factors for each subframe.
+    :param num_subframes: The number of subframes.
+    :return: A tuple containing the reconstructed excitation and short-term residual signals.
+    """
     frame_len = len(double_frame) // 2
     subframe_len = frame_len // num_subframes
     estimated_samples = []
 
-    # Loop through the concatenated frames and split into subframes
+    # Iterate over subframes and compute estimated samples
     for j, (bj, Nj) in enumerate(zip(b, N)):
         ind_min, ind_max = frame_len + j * subframe_len, frame_len + (j + 1) * subframe_len
         estimated_samples.extend(bj * double_frame[ind_min - Nj: ind_max - Nj])
 
-    reconstructed_lt_resd = double_frame[frame_len:] - estimated_samples
-    reconstructed_st_resd = reconstructed_lt_resd + estimated_samples
-    assert len(reconstructed_lt_resd) == frame_len, "Reconstructed lr residual signal should match frame length."
-    return np.array(reconstructed_lt_resd), np.array(reconstructed_st_resd)
+    # Compute error and short-term residual
+    curr_frame_ex_full = double_frame[frame_len:] - estimated_samples
+    curr_frame_st_resd = curr_frame_ex_full + estimated_samples
+
+    # Validate the length of the reconstructed signal
+    assert len(curr_frame_ex_full) == frame_len, "Reconstructed lt residual signal should match frame length."
+
+    return np.array(curr_frame_ex_full), np.array(curr_frame_st_resd)
 
 
-def RPE_frame_slt_coder(s0: np.ndarray, prev_frame_st_resd: np.ndarray)\
+def RPE_frame_slt_coder(s0: np.ndarray, prev_frame_st_resd: np.ndarray) \
         -> tuple[np.ndarray, list, list, np.ndarray, np.ndarray]:
     """
-    both s0 and prev_frame_st_resd have len 160
+    Encode the current frame using Regular Pulse Excitation (RPE) with long-term prediction (LTP).
 
-    returns will be:
-    LARc: np.ndarray,
-    Nc: int,
-    bc: int,
-    curr_frame_ex_full: np.ndarray,
-    curr_frame_st_resd: np.ndarray
-
+    :param s0: The input signal frame.
+    :param prev_frame_st_resd: The short-term residual of the previous frame.
+    :return: A tuple containing:
+             - LARc: The encoded Log-Area Ratios (LAR).
+             - Nc: The optimal pitch delays for each subframe.
+             - bc: The quantized gain factors for each subframe.
+             - curr_frame_ex_full: The reconstructed excitation signal.
+             - curr_frame_st_resd: The reconstructed short-term residual signal.
     """
+    # Encode the current frame's short-term residual
     LARc, current_frame_st_resd = RPE_frame_st_coder(s0)
-    concatenated_frames = np.concatenate((prev_frame_st_resd, current_frame_st_resd))
 
-    # Calculate and encode N, b values
-    N, b = find_optimal_pitch_gain_subframes(concatenated_frames)
-    Nc = N  # unnecessary but equation 3.13 says to do so ???
+    # Concatenate previous and current frame residuals
+    concat_frames_resd = np.concatenate((prev_frame_st_resd, current_frame_st_resd))
+
+    # Find optimal pitch delay (N) and gain factor (b)
+    N, b = find_optimal_pitch_gain_subframes(concat_frames_resd)
+
+    # Quantize the factors
+    Nc = N
     bc = quantize_b(b)
 
-    reconstructed_lt_resd, reconstructed_st_resd = calculate_reconstructed_lt_resd(concatenated_frames, Nc, bc)
+    # Reconstruct the excitation and short-term residual signals
+    curr_frame_ex_full, curr_frame_st_resd = reconstruct_frame_residuals(concat_frames_resd, Nc, bc)
 
-    # don't bother me with return types
-    array = np.zeros(1)
-    return LARc, Nc, bc, array, array
-
+    return LARc, Nc, bc, curr_frame_ex_full, curr_frame_st_resd

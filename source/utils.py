@@ -9,6 +9,8 @@ min_values = [-32, -32, -16, -16, -8, -8, -4, -4]
 max_values = [31, 31, 15, 15, 7, 7, 3, 3]
 DLB = [0.2, 0.5, 0.8]
 QLB = [0.1, 0.35, 0.65, 1.0]
+alpha = 32735 * (2 ** -15)
+beta = 28180 * (2 ** -15)
 
 def decode_LARc_to_reflection(LARc: np.ndarray) -> np.ndarray:
     """ Decode quantized LARc values back into reflection coefficients. """
