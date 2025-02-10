@@ -1,4 +1,3 @@
-import numpy as np
 from encoder import *
 from decoder import *
 
