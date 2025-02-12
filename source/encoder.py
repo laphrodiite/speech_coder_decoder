@@ -2,7 +2,7 @@ import numpy as np
 from scipy.signal import lfilter
 
 from hw_utils import polynomial_coeff_to_reflection_coeff
-from source.utils import A, B, min_values, max_values, decode_LARc_to_reflection
+from source.utils import decode_LARc_to_reflection
 
 
 def preprocess_signal(s0: np.ndarray) -> np.ndarray:
@@ -46,7 +46,7 @@ def calculate_acf(signal: np.ndarray, lag: int = 8) -> np.ndarray:
     for k in range(lag + 1):
         acf[k] = np.sum(signal[k:] * signal[:N - k])
 
-    return acf[0:lag + 1]
+    return acf
 
 
 def convert_reflection_to_LAR(reflection_coefficients: np.ndarray) -> np.ndarray:
@@ -56,6 +56,7 @@ def convert_reflection_to_LAR(reflection_coefficients: np.ndarray) -> np.ndarray
     :param reflection_coefficients: The reflection coefficients to convert.
     :return: The corresponding Log-Area Ratios (LAR).
     """
+    assert np.max(reflection_coefficients) <= 1, 'Reflection coefficients should not be larger than 1'
     LAR = []
     for r in reflection_coefficients:
         abs_r = abs(r)
@@ -76,6 +77,8 @@ def quantize_LAR(LAR: np.ndarray) -> np.ndarray:
     :param LAR: The Log-Area Ratios to quantize.
     :return: The quantized and encoded LAR values.
     """
+    # Import constant parameters
+    from utils import A, B, min_values, max_values
     if len(LAR) != len(A):
         raise ValueError(f"LAR size ({len(LAR)}) does not match A/B size ({len(A)}).")
 

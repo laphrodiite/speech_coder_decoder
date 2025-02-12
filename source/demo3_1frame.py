@@ -1,22 +1,33 @@
-from encoder import *
-from decoder import *
+from encoder import RPE_frame_st_coder
+from decoder import RPE_frame_st_decoder
+import numpy as np
 import matplotlib.pyplot as plt
-# Generate a random speech frame
-s0 = np.random.normal(0, 1, size=160)
 
-# Encode the signal
-LARc, curr_frame_st_resd = RPE_frame_st_coder(s0)
+# Generate random speech frames
+n = 4
+mses = []
 
-# Decode the signal
-reconstructed_s0 = RPE_frame_st_decoder(LARc, curr_frame_st_resd)
+for i in range(n):
+    # Initialize a signal with varying deviation
+    s = np.random.normal(0, 10 ** i, size=160)
 
-# Calculate Mean Squared Error (MSE) between original and reconstructed signal
-mse = np.mean((s0 - reconstructed_s0) ** 2)
-print(np.min(s0), np.max(s0))
-print(np.min(reconstructed_s0), np.max(reconstructed_s0))
-plt.plot(s0)
-plt.show()
-plt.plot(reconstructed_s0)
-plt.show()
-print(f"Reconstruction MSE: {mse}")
-assert mse < 1e-3, "Reconstruction error is too high!"
+    # Encode and decode the signal
+    LARc, curr_frame_st_resd = RPE_frame_st_coder(s)
+    reconstructed_s = RPE_frame_st_decoder(LARc, curr_frame_st_resd)
+
+    # Calculate Mean Squared Error (MSE) between original and reconstructed signal
+    mse = np.mean((s - reconstructed_s) ** 2)
+    print('DEVIATION: ', 10**i)
+    print(f'\tOriginal range: ({np.min(s)}, {np.max(s)}')
+    print(f'\tReconstructed range: ({np.min(reconstructed_s)}, {np.max(reconstructed_s)})')
+    print(f'\tReconstruction MSE: {mse}')
+    mses.append(mse)
+
+plt.plot(mses, marker='o')
+plt.yscale('log')  # Set y-axis to logarithmic scale
+plt.title('Short-term Reconstruction MSE for 1 frame for different deviations')
+plt.xlabel('Deviation as a power of 10')
+plt.ylabel('Reconstruction MSE (log scale)')
+plt.savefig('../plots/1_mse_deviation.png')
+
+
