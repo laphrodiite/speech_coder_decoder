@@ -1,8 +1,10 @@
 import numpy as np
 from scipy.signal import lfilter
 from hw_utils import reflection_coeff_to_polynomial_coeff
-from utils import decode_LARc_to_reflection, BETA
+from utils import decode_LARc_to_reflection, beta
 from typing import List, Tuple
+import struct
+from bitstring import BitArray
 
 def RPE_frame_st_decoder(LARc: np.ndarray, curr_frame_st_resd: np.ndarray) -> np.ndarray:
     """
@@ -19,11 +21,12 @@ def RPE_frame_st_decoder(LARc: np.ndarray, curr_frame_st_resd: np.ndarray) -> np
     # Postprocessing step included
     # IIR filter coefficients
     b = [1]  # Numerator (direct gain)
-    a = [1, -BETA]  # Denominator (feedback term)
+    a = [1, -beta]  # Denominator (feedback term)
 
     # Apply the filter
     s0 = lfilter(b, a, s_prime)
     return s0
+
 
 def RPE_frame_slt_decoder(LARc: np.ndarray,
                           Nc: List[int],
@@ -81,18 +84,53 @@ def RPE_frame_slt_decoder(LARc: np.ndarray,
     
     return s0, curr_frame_st_resd
 
-if __name__ == '__main__':
-    # Create example (dummy) data for demonstration purposes.
-    # In practice, these values are obtained from the transmission or previous decoding steps.
-    LARc = np.random.randn(8)                # Example LAR coefficients
-    Nc = [60, 65, 70, 75]                    # Example pitch delays for the 4 subframes (each between 40 and 120)
-    bc = [0.7, 0.8, 0.85, 0.9]                 # Example long term prediction gains
-    curr_frame_ex_full = np.random.randn(160)  # Example overall prediction error signal e(n)
-    prev_frame_st_resd = np.random.randn(160)    # Example previous frame residual d'(n)
-    
-    # Run the long-term synthesis decoder for the current frame
-    s0, curr_frame_st_resd = RPE_frame_slt_decoder(LARc, Nc, bc, curr_frame_ex_full, prev_frame_st_resd)
-    
-    # Output some of the results for verification
-    print("Synthesized speech signal (first 10 samples):", s0[:10])
-    print("Reconstructed short term residual (first 10 samples):", curr_frame_st_resd[:10])
+
+# --------------------------------- This is the thiiiiiiird paradoteo --------------------------------- #
+
+def RPE_frame_decoder(frame_bit_stream: BitArray, prev_frame_resd: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Decode the bitstream and reconstruct the frame.
+
+    :param frame_bit_stream: The bitstream (260 bits) representing the frame.
+    :param prev_frame_resd: The short-term residual of the previous frame (160 samples).
+    :return: A tuple containing the reconstructed signal (160 samples) and the current frame's short-term residual.
+    """
+    # Step 1: Parse the bitstream
+    index = 0
+
+    # Decode LARc (Log-Area Ratios)
+    LARc = [
+        frame_bit_stream[index:index+6].int,  # LARc[1] - 6 bits (signed)
+        frame_bit_stream[index+6:index+12].int,  # LARc[2] - 6 bits (signed)
+        frame_bit_stream[index+12:index+17].int,  # LARc[3] - 5 bits (signed)
+        frame_bit_stream[index+17:index+22].int,  # LARc[4] - 5 bits (signed)
+        frame_bit_stream[index+22:index+26].int,  # LARc[5] - 4 bits (signed)
+        frame_bit_stream[index+26:index+30].int,  # LARc[6] - 4 bits (signed)
+        frame_bit_stream[index+30:index+33].int,  # LARc[7] - 3 bits (signed)
+        frame_bit_stream[index+33:index+36].int,  # LARc[8] - 3 bits (signed)
+    ]
+    index += 36
+
+    # Decode subframe parameters
+    Nc, bc, curr_frame_ex_full = [], [], []
+    for _ in range(4):  # 4 subframes
+        # Nc - 7 bits (LTP lag, signed)
+        Nc.append(frame_bit_stream[index:index+7].uint)
+        index += 7
+        # bc - 2 bits (LTP gain, signed)
+        bc.append(frame_bit_stream[index:index+2].uint)
+        index += 2
+        # xMc (curr_frame_ex_full) - 40 samples per subframe, 3 bits per sample (signed)
+        subframe_ex = []
+        for _ in range(40):
+            subframe_ex.append(frame_bit_stream[index:index+3].int)
+            index += 3
+        curr_frame_ex_full.extend(subframe_ex)
+
+    # Convert curr_frame_ex_full to a numpy array
+    curr_frame_ex_full = np.array(curr_frame_ex_full)
+
+    # Step 2: Decode the frame using short-term and long-term prediction
+    s0, curr_frame_st_resd = RPE_frame_slt_decoder(LARc, Nc, bc, curr_frame_ex_full, prev_frame_resd)
+
+    return s0, curr_frame_st_resd

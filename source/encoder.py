@@ -4,6 +4,7 @@ import struct
 
 from hw_utils import polynomial_coeff_to_reflection_coeff
 from utils import decode_LARc_to_reflection, compose_frame, alpha, beta
+from bitstring import BitArray
 
 
 def preprocess_signal(s0: np.ndarray) -> np.ndarray:
@@ -257,44 +258,45 @@ def RPE_frame_slt_coder(s0: np.ndarray, prev_frame_st_resd: np.ndarray) \
 
     return LARc, Nc, bc, curr_frame_ex_full, curr_frame_st_resd
 
-# # --------------------------------- This is the thiiiiiiird paradoteo --------------------------------- #
 
-# def RPE_frame_coder(s0: np.ndarray, prev_frame_resd: np.ndarray) -> tuple[str, np.ndarray]:
-#     """
-#     Encode the current frame and generate the bitstream.
+# --------------------------------- This is the thiiiiiiird paradoteo --------------------------------- #
 
-#     :param s0: The input signal frame (160 samples).
-#     :param prev_frame_resd: The short-term residual of the previous frame (160 samples).
-#     :return: A tuple containing the bitstream (260 bits) and the current frame's short-term residual.
-#     """
-#     # Step 1: Encode the frame using short-term and long-term prediction
-#     LARc, Nc, bc, curr_frame_ex_full, curr_frame_st_resd = RPE_frame_slt_coder(s0, prev_frame_resd)
+def RPE_frame_coder(s0: np.ndarray, prev_frame_resd: np.ndarray) -> tuple[BitArray, np.ndarray]:
+    """
+    Encode the current frame and generate the bitstream.
 
-#     # Step 2: Compose the bitstream
-#     bitstream = ""
+    :param s0: The input signal frame (160 samples).
+    :param prev_frame_resd: The short-term residual of the previous frame (160 samples).
+    :return: A tuple containing the bitstream (260 bits) and the current frame's short-term residual.
+    """
+    # Step 1: Encode the frame using short-term and long-term prediction
+    LARc, Nc, bc, curr_frame_ex_full, curr_frame_st_resd = RPE_frame_slt_coder(s0, prev_frame_resd)
 
-#     # Encode LARc (Log-Area Ratios)
-#     bitstream += format(LARc[0], '06b')  # LARc[1] - 6 bits
-#     bitstream += format(LARc[1], '06b')  # LARc[2] - 6 bits
-#     bitstream += format(LARc[2], '05b')  # LARc[3] - 5 bits
-#     bitstream += format(LARc[3], '05b')  # LARc[4] - 5 bits
-#     bitstream += format(LARc[4], '04b')  # LARc[5] - 4 bits
-#     bitstream += format(LARc[5], '04b')  # LARc[6] - 4 bits
-#     bitstream += format(LARc[6], '03b')  # LARc[7] - 3 bits
-#     bitstream += format(LARc[7], '03b')  # LARc[8] - 3 bits
+    # Step 2: Compose the bitstream using BitArray
+    bitstream = BitArray()
 
-#     # Encode subframe parameters
-#     for i in range(4):  # 4 subframes
-#         # Nc - 7 bits (LTP lag)
-#         bitstream += format(Nc[i], '07b')
-#         # bc - 2 bits (LTP gain)
-#         bitstream += format(bc[i], '02b')
-#         # xMc (curr_frame_ex_full) - 40 samples per subframe, 3 bits per sample
-#         subframe_ex = curr_frame_ex_full[i * 40 : (i + 1) * 40]
-#         for sample in subframe_ex:
-#             bitstream += format(int(sample), '03b')  # Quantize to 3 bits
+    # Encode LARc (Log-Area Ratios)
+    bitstream.append(BitArray(int=LARc[0], length=6))  # LARc[1] - 6 bits (signed)
+    bitstream.append(BitArray(int=LARc[1], length=6))  # LARc[2] - 6 bits (signed)
+    bitstream.append(BitArray(int=LARc[2], length=5))  # LARc[3] - 5 bits (signed)
+    bitstream.append(BitArray(int=LARc[3], length=5))  # LARc[4] - 5 bits (signed)
+    bitstream.append(BitArray(int=LARc[4], length=4))  # LARc[5] - 4 bits (signed)
+    bitstream.append(BitArray(int=LARc[5], length=4))  # LARc[6] - 4 bits (signed)
+    bitstream.append(BitArray(int=LARc[6], length=3))  # LARc[7] - 3 bits (signed)
+    bitstream.append(BitArray(int=LARc[7], length=3))  # LARc[8] - 3 bits (signed)
 
-#     # Validate bitstream length
-#     assert len(bitstream) == 260, f"Bitstream length is {len(bitstream)} instead of 260."
+    # Encode subframe parameters
+    for i in range(4):  # 4 subframes
+        # Nc - 7 bits (LTP lag, signed)
+        bitstream.append(BitArray(uint=Nc[i], length=7))
+        # bc - 2 bits (LTP gain, signed)
+        bitstream.append(BitArray(uint=bc[i], length=2))
+        # xMc (curr_frame_ex_full) - 40 samples per subframe, 3 bits per sample (signed)
+        subframe_ex = curr_frame_ex_full[i * 40 : (i + 1) * 40]
+        for sample in subframe_ex:
+            bitstream.append(BitArray(int=int(sample), length=3))  # Quantize to 3 bits (signed)
 
-#     return bitstream, curr_frame_st_resd
+    # Validate bitstream length
+    #assert len(bitstream) == 260, f"Bitstream length is {len(bitstream)}, expected 260"
+
+    return bitstream, curr_frame_st_resd
