@@ -1,8 +1,9 @@
 import numpy as np
 from scipy.signal import lfilter
+import struct
 
 from hw_utils import polynomial_coeff_to_reflection_coeff
-from source.utils import decode_LARc_to_reflection
+from utils import decode_LARc_to_reflection, compose_frame, alpha, beta
 
 
 def preprocess_signal(s0: np.ndarray) -> np.ndarray:
@@ -12,10 +13,6 @@ def preprocess_signal(s0: np.ndarray) -> np.ndarray:
     :param s0: The original input signal.
     :return: The preprocessed signal.
     """
-
-    # Offset compensation & pre-emphasis constants
-    from source.utils import alpha, beta
-
     # Initialize offset-compensated signal & final pre-emphasized signal arrays
     s0f = np.zeros_like(s0)
     s = np.zeros_like(s0)
@@ -160,10 +157,14 @@ def quantize_b(b: list) -> list:
     from utils import DLB
     bc = []
     for bj in b:
-        for i in range(len(DLB)):
-            if bj <= DLB[i]:
-                bc.append(i)
-                break
+        if bj <= DLB[0]:
+            bc.append(0)
+        elif bj > DLB[2]:
+            bc.append(3)
+        else:
+            for i in [1,2]:
+                if DLB[i-1] < bj <= DLB[i]:
+                    bc.append(i)
     return bc
 
 
@@ -213,6 +214,7 @@ def reconstruct_frame_residuals(double_frame: np.ndarray, N: list, b: list, num_
         ind_min, ind_max = frame_len + j * subframe_len, frame_len + (j + 1) * subframe_len
         estimated_samples.extend(bj * double_frame[ind_min - Nj: ind_max - Nj])
 
+    assert len(estimated_samples) == 160, f"Estimated samples are not 160 but {len(estimated_samples)} "
     # Compute error and short-term residual
     curr_frame_ex_full = double_frame[frame_len:] - estimated_samples
     curr_frame_st_resd = curr_frame_ex_full + estimated_samples
@@ -254,3 +256,45 @@ def RPE_frame_slt_coder(s0: np.ndarray, prev_frame_st_resd: np.ndarray) \
     curr_frame_ex_full, curr_frame_st_resd = reconstruct_frame_residuals(concat_frames_resd, Nc, bc)
 
     return LARc, Nc, bc, curr_frame_ex_full, curr_frame_st_resd
+
+# # --------------------------------- This is the thiiiiiiird paradoteo --------------------------------- #
+
+# def RPE_frame_coder(s0: np.ndarray, prev_frame_resd: np.ndarray) -> tuple[str, np.ndarray]:
+#     """
+#     Encode the current frame and generate the bitstream.
+
+#     :param s0: The input signal frame (160 samples).
+#     :param prev_frame_resd: The short-term residual of the previous frame (160 samples).
+#     :return: A tuple containing the bitstream (260 bits) and the current frame's short-term residual.
+#     """
+#     # Step 1: Encode the frame using short-term and long-term prediction
+#     LARc, Nc, bc, curr_frame_ex_full, curr_frame_st_resd = RPE_frame_slt_coder(s0, prev_frame_resd)
+
+#     # Step 2: Compose the bitstream
+#     bitstream = ""
+
+#     # Encode LARc (Log-Area Ratios)
+#     bitstream += format(LARc[0], '06b')  # LARc[1] - 6 bits
+#     bitstream += format(LARc[1], '06b')  # LARc[2] - 6 bits
+#     bitstream += format(LARc[2], '05b')  # LARc[3] - 5 bits
+#     bitstream += format(LARc[3], '05b')  # LARc[4] - 5 bits
+#     bitstream += format(LARc[4], '04b')  # LARc[5] - 4 bits
+#     bitstream += format(LARc[5], '04b')  # LARc[6] - 4 bits
+#     bitstream += format(LARc[6], '03b')  # LARc[7] - 3 bits
+#     bitstream += format(LARc[7], '03b')  # LARc[8] - 3 bits
+
+#     # Encode subframe parameters
+#     for i in range(4):  # 4 subframes
+#         # Nc - 7 bits (LTP lag)
+#         bitstream += format(Nc[i], '07b')
+#         # bc - 2 bits (LTP gain)
+#         bitstream += format(bc[i], '02b')
+#         # xMc (curr_frame_ex_full) - 40 samples per subframe, 3 bits per sample
+#         subframe_ex = curr_frame_ex_full[i * 40 : (i + 1) * 40]
+#         for sample in subframe_ex:
+#             bitstream += format(int(sample), '03b')  # Quantize to 3 bits
+
+#     # Validate bitstream length
+#     assert len(bitstream) == 260, f"Bitstream length is {len(bitstream)} instead of 260."
+
+#     return bitstream, curr_frame_st_resd
