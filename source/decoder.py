@@ -1,11 +1,13 @@
 import numpy as np
 from scipy.signal import lfilter
-from hw_utils import reflection_coeff_to_polynomial_coeff
-from utils import decode_LARc_to_reflection, beta
 from typing import List, Tuple
-import struct
 from bitstring import BitArray
 
+from hw_utils import reflection_coeff_to_polynomial_coeff
+from utils import beta
+from utils_decoder import *
+
+# --------------------------------- PART ONE --------------------------------- #
 def RPE_frame_st_decoder(LARc: np.ndarray, curr_frame_st_resd: np.ndarray) -> np.ndarray:
     """
         Decode the short-term residual and LAR coefficients
@@ -28,6 +30,7 @@ def RPE_frame_st_decoder(LARc: np.ndarray, curr_frame_st_resd: np.ndarray) -> np
     return s0
 
 
+# --------------------------------- PART TWO --------------------------------- #
 def RPE_frame_slt_decoder(LARc: np.ndarray,
                           Nc: List[int],
                           bc: List[int],
@@ -85,8 +88,7 @@ def RPE_frame_slt_decoder(LARc: np.ndarray,
     return s0, curr_frame_st_resd
 
 
-# --------------------------------- This is the thiiiiiiird paradoteo --------------------------------- #
-
+# --------------------------------- PART THREE --------------------------------- #
 def RPE_frame_decoder(frame_bit_stream: BitArray, prev_frame_resd: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
     Decode the bitstream and reconstruct the frame.

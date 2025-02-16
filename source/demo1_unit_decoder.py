@@ -1,4 +1,4 @@
-from source.decoder import *
+from decoder import *
 
 def main():
     # Example Inputs

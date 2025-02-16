@@ -1,8 +1,8 @@
-from source.utils import load_wav, save_wav
+from utils import load_wav, save_wav
 import numpy as np
-from source.decoder import RPE_frame_st_decoder
-from source.encoder import RPE_frame_st_coder
-from source.utils import plot_waves
+from decoder import RPE_frame_st_decoder
+from encoder import RPE_frame_st_coder
+from utils import plot_waves
 
 def encode_decode_pipeline(original_audio, frame_size = 160, verbose=False):
     # Split to 160 samples per frame

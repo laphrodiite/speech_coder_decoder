@@ -1,5 +1,5 @@
 import numpy as np
-from encoder import RPE_subframe_slt_lte
+from utils_encoder import RPE_subframe_slt_lte
 
 # This main checks the RPE_subframe_slt_lte function
 def main():
