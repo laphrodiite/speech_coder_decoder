@@ -173,10 +173,47 @@ def reconstruct_frame_residuals(double_frame: np.ndarray, N: list, b: list, num_
     subframe_len = frame_len // num_subframes
     estimated_samples = []
 
+    # Initialize the reconstructed residuals for the current frame
+    curr_frame_st_resd = np.zeros(frame_len)
+
     # Iterate over subframes and compute estimated samples
     for j, (bj, Nj) in enumerate(zip(b, N)):
-        ind_min, ind_max = frame_len + j * subframe_len, frame_len + (j + 1) * subframe_len
-        estimated_samples.extend(bj * double_frame[ind_min - Nj: ind_max - Nj])
+        # Calculate the start and end indices for the current subframe
+        start = j * subframe_len
+        end = start + subframe_len
+
+        # Extract the current subframe from the double_frame
+        subframe = double_frame[frame_len + start:frame_len + end]
+
+        # Initialize the reconstructed residuals for the current subframe
+        subframe_st_resd = np.zeros(subframe_len)
+
+        # Compute the reconstructed residuals for the current subframe
+        for n in range(subframe_len):
+            # Compute the index for the delayed sample: n - Nj
+            delayed_index = n - Nj
+
+            # If the delayed index is within the current subframe, use the reconstructed residual.
+            # Otherwise, use the previous frame's residual.
+            if delayed_index >= 0:
+                d_prev = subframe_st_resd[delayed_index]
+            else:
+                # Adjust negative indices to fetch from the end portion of the previous frame.
+                d_prev = curr_frame_st_resd[frame_len + delayed_index]
+
+            # Long term prediction:
+            # d'_pred(n) = bj * d'(n - Nj)
+            predicted = bj * d_prev
+
+            # Reconstruct the short term residual for the current sample:
+            # d'(n) = e(n) + d'_pred(n)
+            subframe_st_resd[n] = subframe[n] - predicted
+
+        # Update the reconstructed residuals for the current subframe
+        curr_frame_st_resd[start:end] = subframe_st_resd
+
+        # Compute the estimated samples for the current subframe
+        estimated_samples.extend(subframe_st_resd)
 
     assert len(estimated_samples) == 160, f"Estimated samples are not 160 but {len(estimated_samples)} "
     # Compute error and short-term residual

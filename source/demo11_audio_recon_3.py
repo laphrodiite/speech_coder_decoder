@@ -1,4 +1,4 @@
-from source.utils import load_wav, save_wav, plot_waves
+from utils import load_wav, save_wav, plot_waves
 import numpy as np
 from decoder import RPE_frame_decoder
 from encoder import RPE_frame_coder

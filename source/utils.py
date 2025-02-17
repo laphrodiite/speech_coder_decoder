@@ -60,4 +60,4 @@ def plot_waves(s0, reconstructed_s0, mses):
     ax3.set_ylabel("MSE")
 
     fig.suptitle('RPE Frame Coder & Decoder Results')
-    plt.savefig('../plots/1_waves.png')
+    plt.savefig('../plots/3_waves.png')
