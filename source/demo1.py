@@ -1,7 +1,7 @@
-from decoder import *
+from decoder import RPE_frame_st_decoder
+import numpy as np
 
 def main():
-    # Example Inputs
     # Generate a random array of 8 LARc values between -1.5 and 1.5 (example range based on ETSI GSM spec)
     LARc = np.random.uniform(-1.5, 1.5, size=8)
 

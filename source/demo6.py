@@ -1,8 +1,7 @@
-from encoder import *
-from decoder import *
+from encoder import RPE_frame_slt_coder, RPE_frame_st_coder
+import numpy as np
 
 def main():
-    # Example Inputs
     # Generate random arrays of 160 speech signal samples for two consecutive frames
     s0 = np.random.normal(0, 1, size=160)
     s1 = np.random.normal(0, 1, size=160)

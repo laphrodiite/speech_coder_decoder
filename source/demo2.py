@@ -1,4 +1,5 @@
-from encoder import *
+from encoder import RPE_frame_st_coder
+import numpy as np
 
 def main():
     # Example Inputs

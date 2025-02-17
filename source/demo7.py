@@ -1,5 +1,4 @@
-from encoder import *
-from decoder import *
+from decoder import RPE_frame_slt_decoder, RPE_frame_st_decoder
 import numpy as np
 
 def main():
@@ -15,7 +14,7 @@ def main():
     s0 = RPE_frame_st_decoder(LARc0, prev_frame_st_resd)
 
     # Decode the second frame
-    s1, curr_frame_st_resd = RPE_frame_slt_decoder(LARc1, Nc, bc, curr_frame_ex_full, prev_frame_st_resd)
+    s1, curr_frame_st_resd = RPE_frame_slt_decoder(LARc1, list(Nc), list(bc), curr_frame_ex_full, prev_frame_st_resd)
 
     # Expected behavior: s0 and s1 should both have the shape (160,)
     assert s0.shape == (160,), "Decoded signal s0 shape does not match expected shape (160,)."

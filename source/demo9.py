@@ -56,7 +56,7 @@ def encode_decode_pipeline(original_audio, frame_size=160, verbose=False):
 def main():
     # Input and output file paths
     input_wav_path = "../ena_dio_tria.wav"
-    output_wav_path = "../reconstructed_2.wav"
+    output_wav_path = "./long_term_reconstructed.wav"
 
     # Load input WAV file
     s0, framerate = load_wav(input_wav_path)
@@ -71,7 +71,7 @@ def main():
     mse = np.mean((s0[:len(reconstructed_s0)] - reconstructed_s0) ** 2)
 
     # Plot the waves in a common plot
-    plot_waves(s0, reconstructed_s0, mses)
+    plot_waves(s0, reconstructed_s0, mses, fig_title='long_term_waves.png')
     print(f"Reconstruction MSE: {int(mse) / (10 ** (len(str(int(mse))) - 1)) : .3f} * 10 ^ {len(str(int(mse))) - 1}")
 
 if __name__ == '__main__':
