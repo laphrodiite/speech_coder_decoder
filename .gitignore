@@ -2,3 +2,5 @@
 .vscode
 **/__pycache__
 /source/*.wav
+/source/*.png
+
