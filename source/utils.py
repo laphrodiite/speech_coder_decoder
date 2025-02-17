@@ -40,7 +40,7 @@ def save_wav(file_path, audio_data, framerate):
         wav_file.setframerate(framerate)
         wav_file.writeframes(audio_data.tobytes())
 
-def plot_waves(s0, reconstructed_s0, mses):
+def plot_waves(s0, reconstructed_s0, mses, fig_title='3_waves.png'):
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
     ax1.plot(s0, label="s0", color="blue")
     ax1.set_title("Original Sound Wave")
@@ -60,4 +60,4 @@ def plot_waves(s0, reconstructed_s0, mses):
     ax3.set_ylabel("MSE")
 
     fig.suptitle('RPE Frame Coder & Decoder Results')
-    plt.savefig('../plots/3_waves.png')
+    plt.savefig(f'./{fig_title}')
