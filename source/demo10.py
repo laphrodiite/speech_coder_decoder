@@ -26,7 +26,6 @@ def main():
     print("\nComparison Results:")
     print("Original Signal (first 10 samples):", s0[:10])
     print("Decoded Signal (first 10 samples):", decoded_s0[:10])
-    print("Signal Match:", np.allclose(s0, decoded_s0, atol=1e-5))  # Check if signals match within a tolerance
 
-if __name__ == 'main':
+if __name__ == '__main__':
     main()
