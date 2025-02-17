@@ -29,7 +29,7 @@ def main():
     plt.title('Short-term Reconstruction MSE for 1 frame for different deviations')
     plt.xlabel('Deviation as a power of 10')
     plt.ylabel('Reconstruction MSE (log scale)')
-    plt.savefig('./1_mse_deviation.png')
+    plt.savefig('./short_term_mse_deviation.png')
 
 if __name__ == '__main__':
     main()
