@@ -1,7 +1,6 @@
 import numpy as np
-from utils import alpha, beta, DLB, A, B
+from utils import alpha, beta, DLB
 
-#TODO: Comments comments comments
 
 def preprocess_signal(s0: np.ndarray) -> np.ndarray:
     """

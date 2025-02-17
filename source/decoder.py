@@ -116,10 +116,10 @@ def RPE_frame_decoder(frame_bit_stream: BitArray, prev_frame_resd: np.ndarray) -
     # Decode subframe parameters
     Nc, bc, curr_frame_ex_full = [], [], []
     for _ in range(4):  # 4 subframes
-        # Nc - 7 bits (LTP lag, signed)
+        # Nc - 7 bits (LTP lag, unsigned)
         Nc.append(frame_bit_stream[index:index+7].uint)
         index += 7
-        # bc - 2 bits (LTP gain, signed)
+        # bc - 2 bits (LTP gain, unsigned)
         bc.append(frame_bit_stream[index:index+2].uint)
         index += 2
         # xMc (curr_frame_ex_full) - 40 samples per subframe, 3 bits per sample (signed)

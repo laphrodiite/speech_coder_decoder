@@ -4,6 +4,7 @@ from utils import A, B
 
 def decode_LARc_to_reflection(LARc: np.ndarray) -> np.ndarray:
     """ Decode quantized LARc values back into reflection coefficients. """
+    # De-normalize LARc values using arrays A and B
     LAR = (LARc - np.array(B)) / np.array(A)
     reflection_coefficients = []
     for lar in LAR:
@@ -14,4 +15,6 @@ def decode_LARc_to_reflection(LARc: np.ndarray) -> np.ndarray:
             reflection_coefficients.append(np.sign(lar) * (0.5 * (abs_lar + 0.675)))
         else:  # abs_lar >= 1.35
             reflection_coefficients.append(np.sign(lar) * ((abs_lar + 6.375) / 8))
+    
+    # Return the reflection coefficients as a NumPy array
     return np.array(reflection_coefficients)

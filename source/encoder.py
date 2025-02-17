@@ -83,10 +83,10 @@ def RPE_frame_coder(s0: np.ndarray, prev_frame_resd: np.ndarray) -> tuple[BitArr
     :param prev_frame_resd: The short-term residual of the previous frame (160 samples).
     :return: A tuple containing the bitstream (260 bits) and the current frame's short-term residual.
     """
-    # Step 1: Encode the frame using short-term and long-term prediction
+    # Encode the frame using short-term and long-term prediction
     LARc, Nc, bc, curr_frame_ex_full, curr_frame_st_resd = RPE_frame_slt_coder(s0, prev_frame_resd)
 
-    # Step 2: Compose the bitstream using BitArray
+    # Compose the bitstream using BitArray
     bitstream = BitArray()
 
     # Encode LARc (Log-Area Ratios)
@@ -101,9 +101,9 @@ def RPE_frame_coder(s0: np.ndarray, prev_frame_resd: np.ndarray) -> tuple[BitArr
 
     # Encode subframe parameters
     for i in range(4):  # 4 subframes
-        # Nc - 7 bits (LTP lag, signed)
+        # Nc - 7 bits (LTP lag, unsigned)
         bitstream.append(BitArray(uint=Nc[i], length=7))
-        # bc - 2 bits (LTP gain, signed)
+        # bc - 2 bits (LTP gain, unsigned)
         bitstream.append(BitArray(uint=bc[i], length=2))
         # xMc (curr_frame_ex_full) - 40 samples per subframe, 3 bits per sample (signed)
         subframe_ex = curr_frame_ex_full[i * 40 : (i + 1) * 40]
